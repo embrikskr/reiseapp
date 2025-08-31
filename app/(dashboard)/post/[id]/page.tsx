@@ -13,7 +13,27 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 }
 export default async function PostPage({ params }: { params: { id: string } }) {
   const supabase = createServerClient(cookies())
-  const { data: post } = await supabase.from('posts').select('id, created_at, country_code, title, body, rating, user_id, profiles!inner(id, username, avatar_url), post_images(url)').eq('id', params.id).single()
+
+  const { data: post } = await supabase
+    .from('posts')
+    .select(
+      'id, created_at, country_code, title, body, rating, user_id, profiles!inner(id, username, avatar_url), post_images(url)'
+    )
+    .eq('id', params.id)
+    .single()
+
   if (!post) return <div className="card p-6">Innlegg finnes ikke.</div>
-  return (<div className="space-y-4"><PostCard post={post as Post} /></div>)
+
+  // ⬇️ Normaliser: hvis Supabase gir en liste i profiles, bruk første element
+  const raw: any = post
+  const normalized: any = {
+    ...raw,
+    profiles: Array.isArray(raw.profiles) ? raw.profiles[0] : raw.profiles,
+  }
+
+  return (
+    <div className="space-y-4">
+      <PostCard post={normalized} />
+    </div>
+  )
 }
