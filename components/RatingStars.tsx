@@ -1,0 +1,2 @@
+'use client'
+export default function RatingStars({ value, onChange, readOnly }:{value:number;onChange?:(v:number)=>void;readOnly?:boolean}){return(<div className='flex gap-1'>{[1,2,3,4,5].map(i=>(<button key={i} type='button' onClick={()=>!readOnly&&onChange?.(i)} className={`text-xl ${i<=value?'text-yellow-500':'text-slate-300'} ${readOnly?'cursor-default':'cursor-pointer'}`}>★</button>))}</div>)}
