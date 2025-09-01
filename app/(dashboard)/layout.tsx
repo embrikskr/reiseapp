@@ -1,16 +1,19 @@
 import NavBar from '@/components/NavBar'
-import { Suspense } from 'react'   // ⬅️ legg til
+import BottomNav from '@/components/BottomNav'
+import { Suspense } from 'react'
 
-export default function DashboardLayout({ children }:{children:React.ReactNode}) {
+export default function DashboardLayout({ children }:{children:React.ReactNode}){
   return (
-    <div>
+    <div className="min-h-screen flex flex-col">
       <NavBar/>
-      <main className='container mt-6 space-y-6'>
-        {/* ⬇️ pakk children i Suspense så sider som bruker useSearchParams er trygge */}
+      <main className="container mt-6 mb-20 md:mb-0 space-y-6">
         <Suspense fallback={null}>
           {children}
         </Suspense>
       </main>
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-40">
+        <BottomNav/>
+      </div>
     </div>
   )
 }
