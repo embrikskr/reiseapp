@@ -1,16 +1,89 @@
-import { cookies } from 'next/headers'
-import { createServerClient } from '@/lib/supabaseServer'
+'use client'
+import { useEffect, useMemo, useState } from 'react'
+import { createBrowserClient } from '@/lib/supabaseBrowser'
+import PassportMap from '@/components/PassportMap'
 import { nameFor } from '@/lib/countries.full'
-import RatingStars from '@/components/RatingStars'
-import Link from 'next/link'
-export default async function PassportPage(){
-  const supabase = createServerClient(cookies())
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return <div className="card p-6">Du må være logget inn.</div>
-  const { data: posts } = await supabase.from('posts').select('id, country_code, rating, created_at').eq('user_id', user.id).order('created_at', { ascending:false })
-  const map = new Map<string,{count:number; last:string; avg:number; sum:number}>()
-  ;(posts||[]).forEach(p=>{ const v = map.get(p.country_code) || {count:0,last:p.created_at,avg:0,sum:0}; const count=v.count+1; const sum=v.sum+(p.rating||0); map.set(p.country_code,{count,last:v.last,sum,avg:sum/count}) })
-  const countries = Array.from(map.entries()).map(([code,v])=>({code,...v}))
-  const latest = (posts||[]).slice(0,5)
-  return (<div className="space-y-6"><div className="card p-6"><h1 className="text-2xl font-bold">Ditt reise-pass</h1><p className="text-slate-600 mt-1">Antall land: <span className="font-semibold">{countries.length}</span></p></div><div className="card p-4"><h2 className="text-lg font-semibold mb-2">Siste ratinger</h2><div className="space-y-2">{latest.map(p=>(<div key={p.id} className="flex items-center justify-between border rounded-xl p-3"><div className="flex items-center gap-2"><span className="badge">{p.country_code}</span><span>{nameFor(p.country_code,'nb')}</span></div><RatingStars value={p.rating||0} readOnly /></div>))}{latest.length===0 && <div className="text-sm text-slate-500">Ingen innlegg enda.</div>}</div></div><div className="card p-4"><h2 className="text-lg font-semibold mb-2">Besøkte land</h2><div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{countries.map(c=>(<Link key={c.code} href={`/country/${c.code}`} className="border rounded-xl p-3 hover:bg-slate-50"><div className="font-mono">{c.code}</div><div className="text-sm text-slate-600">{nameFor(c.code,'nb')}</div><div className="mt-2 flex items-center justify-between"><span className="text-xs text-slate-500">{c.count} innlegg</span><span className="text-xs">Snitt: {c.avg.toFixed(1)}</span></div></Link>))}{countries.length===0 && <div className="text-sm text-slate-500">Du har ikke postet noe enda.</div>}</div></div></div>)
+
+type Row = { country_code: string, rating?: number, created_at?: string }
+
+const TOTAL_COUNTRIES = 197
+
+export default function PassportPage (){
+  const supabase = createBrowserClient()
+  const [rows, setRows] = useState<Row[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string|null>(null)
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); setError('Du må være innlogget.'); return }
+      const { data, error } = await supabase.from('posts').select('country_code, rating, created_at').eq('user_id', user.id).order('created_at', { ascending: false })
+      if (error) setError(error.message)
+      setRows(data || [])
+      setLoading(false)
+    })()
+  }, [])
+
+  const visited = useMemo(() => Array.from(new Set(rows.map(r => (r.country_code||'').toUpperCase()))), [JSON.stringify(rows)])
+  const percent = useMemo(() => Math.round((visited.length / TOTAL_COUNTRIES) * 100), [visited.length])
+
+  const lastRatings = useMemo(() => rows.slice(0, 5).map(r => ({
+    cc: r.country_code,
+    name: nameFor(r.country_code, 'nb'),
+    rating: r.rating || 0,
+    date: r.created_at ? new Date(r.created_at).toLocaleDateString('no-NO') : '',
+  })), [JSON.stringify(rows)])
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="card p-4">
+          <div className="small">Land besøkt</div>
+          <div className="text-2xl font-bold">{visited.length}</div>
+          <div className="progress mt-2"><span style={{ width: `${percent}%` }} /></div>
+          <div className="small mt-1">{percent}% av verden</div>
+        </div>
+        <div className="card p-4">
+          <div className="small">Innlegg</div>
+          <div className="text-2xl font-bold">{rows.length}</div>
+          <div className="small mt-1">Siste 5 under</div>
+        </div>
+        <div className="card p-4">
+          <div className="small">Streak</div>
+          <div className="text-2xl font-bold">{new Date().getFullYear() - (rows.at(-1)?.created_at ? new Date(rows.at(-1)!.created_at!).getFullYear() : new Date().getFullYear()) + 1} år</div>
+          <div className="small mt-1">År med reiser</div>
+        </div>
+        <div className="card p-4">
+          <div className="small">Del</div>
+          <button className="btn btn-primary mt-2" onClick={async ()=>{
+            if (navigator.share) {
+              await navigator.share({ title: 'Mitt reise-kart', url: window.location.href })
+            } else {
+              await navigator.clipboard.writeText(window.location.href)
+              alert('Lenke kopiert!')
+            }
+          }}>Del kart</button>
+        </div>
+      </div>
+
+      <PassportMap iso2Codes={visited} />
+
+      <div className="card p-4">
+        <div className="h2 mb-2">Siste ratinger</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {lastRatings.map((r, i) => (
+            <div key={i} className="flex items-center justify-between border rounded-2xl p-3">
+              <div>
+                <div className="font-semibold">{r.name}</div>
+                <div className="small">{r.date}</div>
+              </div>
+              <div className="chip">★ {r.rating.toFixed(1)}</div>
+            </div>
+          ))}
+          {lastRatings.length === 0 && <div className="text-slate-500 text-sm">Ingen ratinger ennå.</div>}
+        </div>
+      </div>
+    </div>
+  )
 }
