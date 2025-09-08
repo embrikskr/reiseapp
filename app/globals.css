@@ -6,12 +6,21 @@
   --bg: 246 247 251;
   --card: 255 255 255;
   --ink: 15 23 42;
+  --muted: 100 116 139;
   --brand-600: 39 125 255;
   --brand-700: 24 97 219;
 }
+:root[data-theme='dark'] {
+  --bg: 13 17 23;
+  --card: 22 27 34;
+  --ink: 226 232 240;
+  --muted: 148 163 184;
+  --brand-600: 82 156 255;
+  --brand-700: 52 124 230;
+}
 
 html, body { height: 100%; }
-body { @apply text-slate-900 antialiased; }
+body { @apply antialiased; color: rgb(var(--ink)); }
 
 .bg-app {
   background:
@@ -21,43 +30,44 @@ body { @apply text-slate-900 antialiased; }
 }
 
 .container { @apply max-w-5xl mx-auto px-4; }
-.card { @apply bg-white rounded-3xl shadow-[0_8px_40px_rgba(2,6,23,0.08)] border border-slate-100; }
+.card { background-color: rgb(var(--card)); @apply rounded-3xl shadow-[0_8px_40px_rgba(2,6,23,0.08)] border border-slate-100 dark:border-slate-800; }
 
-.btn { @apply inline-flex items-center justify-center rounded-2xl px-3.5 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 transition text-sm font-medium; }
-.btn-primary { @apply text-white border-transparent; background: linear-gradient(135deg, rgb(var(--brand-600)), rgb(var(--brand-700))); }
-.btn-ghost { @apply border-transparent bg-transparent hover:bg-slate-100; }
+.btn { @apply inline-flex items-center justify-center rounded-2xl px-3.5 py-2.5 border text-sm font-medium transition; border-color: rgb(226 232 240 / 1); background-color: rgb(var(--card)); }
+.btn:hover { @apply bg-slate-50 dark:bg-slate-800; }
+.btn-primary { color: white; border-color: transparent; background: linear-gradient(135deg, rgb(var(--brand-600)), rgb(var(--brand-700))); }
+.btn-ghost { border-color: transparent; background: transparent; }
 
 input, textarea, select {
-  @apply rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-200 px-3.5 py-2.5 bg-white text-sm w-full;
+  @apply rounded-2xl border px-3.5 py-2.5 text-sm w-full;
+  border-color: rgb(226 232 240 / 1);
+  background-color: rgb(var(--card));
+  color: rgb(var(--ink));
 }
-label { @apply text-sm font-medium text-slate-700; }
+label { @apply text-sm font-medium; color: rgb(var(--muted)); }
 
-.badge { @apply inline-flex items-center rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs; }
-.chip  { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-2xl bg-slate-100 border border-slate-200 text-xs; }
+.badge { @apply inline-flex items-center rounded-xl border px-2.5 py-1 text-xs; border-color: rgb(226 232 240 / 1); background-color: rgb(var(--card)); }
+.chip  { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-2xl text-xs; background-color: rgb(241 245 249 / 1); border: 1px solid rgb(226 232 240 / 1); }
 
-.progress { @apply w-full h-2 bg-slate-200 rounded-full overflow-hidden; }
+.progress { @apply w-full h-2 rounded-full overflow-hidden; background-color: rgb(226 232 240 / 1); }
 .progress > span { @apply block h-full; background: linear-gradient(90deg, rgb(var(--brand-600)), rgb(var(--brand-700))); }
 
-.navbar {
-  @apply sticky top-0 z-30 border-b border-slate-200/70 backdrop-blur;
-  background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.75));
-}
+.navbar { @apply sticky top-0 z-30 border-b backdrop-blur; border-color: rgb(226 232 240 / 0.7); background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.75)); }
+:root[data-theme='dark'] .navbar { background: linear-gradient(180deg, rgba(22,27,34,0.85), rgba(22,27,34,0.75)); border-color: rgb(51 65 85 / 0.7); }
 
-.bottom-nav {
-  @apply border-t border-slate-200 bg-white/95 backdrop-blur;
-}
+.bottom-nav { @apply border-t backdrop-blur; border-color: rgb(226 232 240 / 1); background-color: rgba(255,255,255,0.95); }
+:root[data-theme='dark'] .bottom-nav { border-color: rgb(51 65 85 / 1); background-color: rgba(22,27,34,0.95); }
 
-.segment { @apply inline-flex p-1 rounded-2xl border border-slate-200 bg-white; }
+.segment { @apply inline-flex p-1 rounded-2xl border bg-white dark:bg-slate-900; border-color: rgb(226 232 240 / 1); }
 .segment button { @apply px-3 py-1.5 rounded-xl text-sm font-medium; }
-.segment .active { @apply text-white; background: linear-gradient(135deg, rgb(var(--brand-600)), rgb(var(--brand-700))); }
+.segment .active { color: white; background: linear-gradient(135deg, rgb(var(--brand-600)), rgb(var(--brand-700))); }
 
-.post-card { @apply card overflow-hidden; }
-.post-cover { @apply relative w-full aspect-[4/5] sm:aspect-[16/9] bg-slate-100; }
+.post-card { @apply overflow-hidden; background-color: rgb(var(--card)); border-radius: 1.5rem; border: 1px solid; border-color: rgb(226 232 240 / 1); }
+.post-cover { @apply relative w-full aspect-[4/5] sm:aspect-[16/9]; background-color: rgb(241 245 249 / 1); }
 .post-bar { @apply absolute top-3 left-3 right-3 flex items-center justify-between; }
-.country-pill { @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/90 backdrop-blur border border-slate-200 text-sm; }
-.rating-pill { @apply inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-black/60 text-white text-xs; }
-.timeline { @apply absolute left-3 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-200 to-blue-400 rounded-full opacity-70; }
+.country-pill { @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl border text-sm; border-color: rgb(226 232 240 / 1); background-color: rgba(255,255,255,0.9); backdrop-filter: blur(6px); }
+.rating-pill { @apply inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl text-xs text-white; background-color: rgba(0,0,0,0.6); }
+.timeline { @apply absolute left-3 top-0 bottom-0 w-1 rounded-full opacity-70; background: linear-gradient(to bottom, #bfdbfe, #60a5fa); }
 
 .h1 { @apply text-2xl md:text-3xl font-bold tracking-tight; }
 .h2 { @apply text-lg md:text-xl font-semibold; }
-.small { @apply text-xs text-slate-500; }
+.small { @apply text-xs; color: rgb(var(--muted)); }

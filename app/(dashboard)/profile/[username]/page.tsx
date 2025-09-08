@@ -1,81 +1,69 @@
-import { cookies } from 'next/headers'
-import { createServerClient } from '@/lib/supabaseServer'
-import Image from 'next/image'
-import FollowButton from '@/components/FollowButton'
-import { nameFor, WORLD_COUNTRY_COUNT, CONTINENT_LABELS, continentOf } from '@/lib/countries.full'
-import ProgressBar from '@/components/ProgressBar'
-import Link from 'next/link'
+'use client'
+import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'next/navigation'
+import { createBrowserClient } from '@/lib/supabaseBrowser'
+import PostCard from '@/components/PostCard'
+import { nameFor } from '@/lib/countries.full'
 
-export default async function ProfilePage({ params }: { params: { username: string } }) {
-  const supabase = createServerClient(cookies())
-  const { data: { user: me } } = await supabase.auth.getUser()
-  const { data: profile } = await supabase.from('profiles').select('id, username, full_name, avatar_url, is_public').eq('username', params.username).single()
-  if (!profile) return <div className="card p-6">Fant ikke profil.</div>
-  const { data: posts } = await supabase.from('posts').select('id, created_at, country_code, title, body, rating, user_id, post_images(url)').eq('user_id', profile.id).order('created_at', { ascending: false })
+type Profile = { id: string; username: string; full_name: string | null; avatar_url: string | null; is_private: boolean | null; bio?: string | null }
+type Post = any
 
-  const visitedSet = new Set<string>((posts||[]).map(p => p.country_code))
-  const visited = Array.from(visitedSet)
-  const percentWorld = visited.length / WORLD_COUNTRY_COUNT * 100
-  const byCont: Record<string, number> = {}
-  visited.forEach(code => { const c = continentOf(code); byCont[c] = (byCont[c]||0) + 1 })
+export default function ProfilePage(){
+  const supabase = createBrowserClient()
+  const params = useParams()
+  const username = (params?.username as string) || ''
 
-  let isFollowing = false
-  if (me && me.id !== profile.id) { const { data: f } = await supabase.from('follows').select('follower_id').eq('follower_id', me.id).eq('following_id', profile.id).maybeSingle(); isFollowing = !!f }
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [posts, setPosts] = useState<Post[]>([])
+
+  useEffect(() => {
+    (async () => {
+      const { data: p } = await supabase.from('profiles').select('id, username, full_name, avatar_url, is_private').eq('username', username).single()
+      setProfile(p as any)
+      if (p) {
+        const { data } = await supabase
+          .from('posts')
+          .select('id, created_at, country_code, title, body, rating, user_id, profiles!inner(id, username, avatar_url), post_images(url, alt, is_cover, order_index)')
+          .eq('user_id', p.id)
+          .order('created_at', { ascending: false })
+          .limit(50)
+        setPosts(data || [])
+      }
+    })()
+  }, [username])
+
+  const countries = useMemo(() => Array.from(new Set(posts.map(p => p.country_code))), [posts])
+  const avg = useMemo(() => {
+    const r = posts.map(p => p.rating).filter(Boolean); if (!r.length) return 0
+    return Math.round((r.reduce((a,b)=>a+b,0)/r.length)*10)/10
+  }, [posts])
 
   return (
-    <div className="space-y-6">
-      <div className="card p-6 flex items-center gap-4">
-        {profile.avatar_url ? <Image src={profile.avatar_url} alt="avatar" width={64} height={64} className="rounded-full object-cover" /> : <div className="w-16 h-16 rounded-full bg-slate-200" />}
+    <div className="space-y-4">
+      <div className="card p-4 md:p-6 flex items-center gap-4">
+        <div className="w-16 h-16 rounded-2xl bg-slate-200 overflow-hidden">
+          {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover"/> : null}
+        </div>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{profile.username}</h1>
-          <p className="text-slate-500">{profile.full_name || '—'}</p>
+          <div className="text-xl font-bold">@{profile?.username}</div>
+          <div className="small">{profile?.full_name || ''}</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="chip">Land: {countries.length}</span>
+            <span className="chip">Innlegg: {posts.length}</span>
+            <span className="chip">Snittrating: {avg.toFixed(1)}</span>
+          </div>
         </div>
-        {me && me.id !== profile.id && <FollowButton targetId={profile.id} initialFollowing={isFollowing} />}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="kpi"><div><div className="text-slate-500 text-sm">Land besøkt</div><div className="text-2xl font-bold">{visited.length}</div></div><div className="text-right"><div className="text-slate-500 text-sm">% av verden</div><div className="text-2xl font-bold">{percentWorld.toFixed(1)}%</div></div></div>
-        <div className="kpi"><div><div className="text-slate-500 text-sm">Innlegg</div><div className="text-2xl font-bold">{posts?.length || 0}</div></div></div>
-        <div className="kpi"><div className="w-full"><div className="text-slate-500 text-sm mb-1">Verdensprogresjon</div><ProgressBar value={percentWorld} /></div></div>
-      </div>
-
-      <div className="card p-6">
-        <h2 className="section-title mb-3">Verdensdeler</h2>
-        <div className="space-y-3">
-          {Object.entries(CONTINENT_LABELS).map(([key, label]) => {
-            const count = byCont[key] || 0
-            const pct = WORLD_COUNTRY_COUNT ? (count / WORLD_COUNTRY_COUNT * 100) : 0
-            return (
-              <div key={key}>
-                <div className="flex items-center justify-between text-sm">
-                  <span>{label}</span>
-                  <span className="text-slate-500">{count} land</span>
-                </div>
-                <ProgressBar value={pct} />
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="card p-6">
-        <h2 className="section-title mb-3">Land besøkt</h2>
-        <div className="flex flex-wrap gap-2">
-          {visited.map(code => (
-            <Link key={code} href={`/country/${code}`} className="chip">{code} <span className="text-slate-600">{nameFor(code, 'nb')}</span></Link>
-          ))}
-          {visited.length === 0 && <div className="text-sm text-slate-500">Ingen land registrert enda.</div>}
+        <div className="flex gap-2">
+          <a className="btn" href="/settings">Rediger</a>
+          <button className="btn btn-primary" onClick={async()=>{
+            if (navigator.share) await navigator.share({ title: `@${profile?.username} på Travelgram`, url: window.location.href })
+            else { await navigator.clipboard.writeText(window.location.href); alert('Lenke kopiert!') }
+          }}>Del profil</button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {(posts || []).map((p)=>(
-          <div key={p.id} className="card p-4">
-            <div className="text-sm text-slate-500">{new Date(p.created_at).toLocaleDateString('no-NO')}</div>
-            <h3 className="text-lg font-semibold mt-1">{p.title || p.country_code}</h3>
-            <div className="mt-2 text-sm">{p.body}</div>
-          </div>
-        ))}
+        {posts.map(p => <PostCard key={p.id} post={p as any} />)}
       </div>
     </div>
   )

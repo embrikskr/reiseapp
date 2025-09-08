@@ -5,27 +5,47 @@ import RatingStars from '@/components/RatingStars'
 import CountrySelect from '@/components/CountrySelect'
 import { compressImageFile } from '@/lib/imageCompress'
 
+type ImgItem = { file: File, alt: string }
+
 export default function NewPostPage() {
   const supabase = createBrowserClient()
   const [country, setCountry] = useState('')
   const [title, setTitle] = useState(''); const [body, setBody] = useState('')
   const [rating, setRating] = useState(4)
   const [startDate, setStartDate] = useState(''); const [endDate, setEndDate] = useState('')
-  const [files, setFiles] = useState<File[]>([])   // array, ikke FileList
+  const [items, setItems] = useState<ImgItem[]>([])   // opptil 5
+  const [coverIdx, setCoverIdx] = useState(0)
   const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null)
 
-  const previews = useMemo(()=> files.map(f => URL.createObjectURL(f)), [files])
+  const previews = useMemo(()=> items.map(i => URL.createObjectURL(i.file)), [items])
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const chosen = Array.from(e.target.files || [])
-    const next = [...files, ...chosen].slice(0, 5) // maks 5 totalt
-    if (files.length + chosen.length > 5) setError('Maks 5 bilder per innlegg')
-    setFiles(next)
-    e.currentTarget.value = '' // reset så man kan velge samme fil igjen hvis man fjernet den
+    const chosen = Array.from(e.target.files || []).map(f => ({ file: f, alt: '' }))
+    const next = [...items, ...chosen].slice(0, 5)
+    if (items.length + chosen.length > 5) setError('Maks 5 bilder per innlegg')
+    setItems(next)
+    e.currentTarget.value = ''
   }
 
   const removeAt = (i: number) => {
-    setFiles(prev => prev.filter((_, idx) => idx !== i))
+    const next = items.filter((_, idx) => idx !== i)
+    setItems(next)
+    if (coverIdx === i) setCoverIdx(0)
+    else if (coverIdx > i) setCoverIdx(coverIdx - 1)
+  }
+
+  const move = (i: number, dir: -1|1) => {
+    const j = i + dir
+    if (j < 0 || j >= items.length) return
+    const copy = items.slice()
+    const tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp
+    setItems(copy)
+    if (coverIdx === i) setCoverIdx(j)
+    else if (coverIdx === j) setCoverIdx(i)
+  }
+
+  const setAlt = (i:number, val:string) => {
+    setItems(prev => prev.map((it, idx) => idx===i ? ({...it, alt: val}) : it))
   }
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -40,21 +60,21 @@ export default function NewPostPage() {
 
     if (postErr || !post) { setLoading(false); return setError(postErr?.message || 'Kunne ikke opprette innlegg') }
 
-    if (files.length > 0) {
-      const toUpload = files.slice(0, 5) // sikkerhet
-      const uploadedUrls: string[] = []
-      for (const raw of toUpload) {
+    if (items.length > 0) {
+      const uploaded = []
+      for (let idx = 0; idx < items.length; idx++) {
+        const raw = items[idx].file
+        const alt = items[idx].alt || null
         const file = await compressImageFile(raw, 1920, 0.82)
-        const path = `${user.id}/${post.id}/${Date.now()}-${file.name}`
+        const path = `${user.id}/${post.id}/${Date.now()}-${idx}-${file.name}`
         const up = await supabase.storage.from('post-images').upload(path, file, { cacheControl: '3600', upsert: false })
         if (!up.error && up.data) {
           const pub = supabase.storage.from('post-images').getPublicUrl(up.data.path)
-          uploadedUrls.push(pub.data.publicUrl)
+          uploaded.push({ url: pub.data.publicUrl, order_index: idx, alt, is_cover: idx === coverIdx })
         }
       }
-      if (uploadedUrls.length) {
-        const rows = uploadedUrls.map((url, idx) => ({ post_id: post.id, url, order_index: idx }))
-        await supabase.from('post_images').insert(rows)
+      if (uploaded.length) {
+        await supabase.from('post_images').insert(uploaded)
       }
     }
 
@@ -64,7 +84,7 @@ export default function NewPostPage() {
   return (
     <div className="card p-6">
       <h1 className="text-2xl font-bold mb-1">Nytt Trip Recap</h1>
-      <p className="text-slate-500 mb-4">Oppsummer reisen med rating, tekst og opptil 5 bilder.</p>
+      <p className="text-slate-500 mb-4">Oppsummer reisen med rating, tekst og opptil 5 bilder. Velg et cover-bilde, endre rekkefølge og legg inn alt-tekst.</p>
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div>
@@ -99,11 +119,19 @@ export default function NewPostPage() {
           <p className="text-xs text-slate-500 mt-1">Store bilder komprimeres automatisk før opplasting.</p>
 
           {previews.length > 0 && (
-            <div className="mt-3 grid grid-cols-3 sm:grid-cols-5 gap-2">
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
               {previews.map((src, i) => (
-                <div key={i} className="relative">
-                  <img src={src} alt={"preview "+(i+1)} className="w-full h-24 object-cover rounded-xl border" />
-                  <button type="button" onClick={()=>removeAt(i)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full px-2 py-0.5 text-xs">x</button>
+                <div key={i} className={"relative rounded-xl border p-2 " + (i===coverIdx ? "ring-2 ring-blue-400" : "")}>
+                  <img src={src} alt={"preview "+(i+1)} className="w-full h-24 object-cover rounded-md" />
+                  <div className="mt-1 flex items-center justify-between gap-1">
+                    <button type="button" className="btn" onClick={()=>setCoverIdx(i)}>{i===coverIdx ? "Cover ✓" : "Gjør til cover"}</button>
+                    <div className="flex gap-1">
+                      <button type="button" className="btn" onClick={()=>move(i,-1)}>←</button>
+                      <button type="button" className="btn" onClick={()=>move(i,1)}>→</button>
+                    </div>
+                    <button type="button" className="btn" onClick={()=>removeAt(i)}>Slett</button>
+                  </div>
+                  <input className="mt-1" placeholder="Alt-tekst (valgfritt)" value={items[i].alt} onChange={e=>setAlt(i, e.target.value)} />
                 </div>
               ))}
             </div>
